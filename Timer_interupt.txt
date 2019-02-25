@@ -1,0 +1,163 @@
+include HT66F50.inc
+
+ds	.section	'data'
+
+PORT		EQU		PC
+PORTC		EQU		PCC
+STACK_A		DB		?
+STACK_PSW	DB		?
+FG_1000MS	DB		?
+DOUBLE		DB		?
+BJT			DB		?
+DIGIT		DB		3	DUP(?)
+
+
+cs	.section	at  000H	'code'
+			ORG		00H
+			JMP		MAIN
+			ORG		14H
+			JMP		ISR_STM
+			
+;===================================
+MAIN:
+			CALL	SETUP
+			CALL	STARTR
+			JMP		$
+			
+;===================================
+SETUP		PROC
+			CLR		ACERL
+			MOV		A,08H
+			MOV		CP0C,A
+			MOV		CP1C,A
+			CLR		PORTC
+			CLR		PBC
+			SET		PDC
+			MOV		A,00000000B
+			MOV		TM2C0,A
+			MOV		A,11000001B
+			MOV		TM2C1,A
+			MOV		A,HIGH	5000
+			MOV		TM2AH,A
+			MOV		A,LOW	5000
+			MOV		TM2AL,A
+			SET		MF0E
+			SET		T2AE
+			SZ		PD.0
+			JMP		$-1
+			SET		EMI
+			SET		T2ON
+			RET
+			SETUP	ENDP
+			
+;===================================
+STARTR		PROC
+			CLR		BJT
+			MOV		A,01000000B
+			MOV		DIGIT[2],A
+			MOV		A,10
+			MOV		DIGIT[0],A
+			MOV		DIGIT[1],A
+			
+WAIT_1000MS:
+			MOV		A,5
+			MOV		DOUBLE,A
+			MOV		A,40
+			MOV		FG_1000MS,A
+			SZ		FG_1000MS
+			JMP		$-1
+			SNZ		PD.1
+			JMP		$+3
+			SDZ		DOUBLE
+			JMP		$-7
+			SNZ		PD.0
+			JMP		$+13
+			MOV		A,01000000B
+			MOV		DIGIT[2],A
+			SDZ		DIGIT[0]
+			JMP		WAIT_1000MS
+			MOV		A,10
+			MOV		DIGIT[0],A
+			SDZ		DIGIT[1]
+			JMP		WAIT_1000MS
+			INC		DIGIT[1]
+			CLR		DIGIT[0]
+			INC		DIGIT[0]
+			JMP		WAIT_1000MS
+			CLR		DIGIT[2]
+			INC		DIGIT[0]
+			MOV		A,DIGIT[0]
+			SUB		A,11
+			SNZ		Z
+			JMP		WAIT_1000MS
+			CLR		DIGIT[0]
+			INC		DIGIT[0]
+			INC		DIGIT[1]
+			MOV		A,DIGIT[1]
+			SUB		A,11
+			SNZ		Z
+			JMP		WAIT_1000MS
+			CLR		DIGIT[2]
+			JMP		$-42
+			RET
+STARTR		ENDP
+
+;===================================
+ISR_STM:
+			MOV		STACK_A,A
+			MOV		A,STATUS
+			MOV		STACK_PSW,A
+			MOV		A,BJT
+			ADDM	A,PCL
+			JMP		OPEN_1
+			JMP		OPEN_2
+			JMP		OPEN_3
+			
+OPEN_1:		CLR		PB.0
+			SET		PB.1
+			SET		PB.2
+			MOV		A,DIGIT[0]
+			CALL	NUMBER
+			MOV		PORT,A
+			INC		BJT
+			JMP		$+15
+			
+OPEN_2:		CLR		PB.1
+			SET		PB.0
+			SET		PB.2
+			MOV		A,DIGIT[1]
+			CALL	NUMBER
+			MOV		PORT,A
+			INC		BJT
+			JMP		$+7
+			
+OPEN_3:		CLR		PB.2
+			SET		PB.0
+			SET		PB.1
+			MOV		A,DIGIT[2]
+			MOV		PORT,A
+			CLR		BJT
+			DEC		FG_1000MS
+			CLR		T2AF
+			MOV		A,STACK_PSW
+			MOV		STATUS,A
+			MOV		A,STACK_A
+			RETI
+			
+;===================================
+NUMBER		PROC
+			DEC		ACC
+			ADDM	A,PCL
+			RET		A,00111111B	;0
+			RET		A,00000110B	;1
+			RET		A,01011011B	;2
+			RET		A,01001111B	;3
+			RET		A,01100110B	;4
+			RET		A,01101101B	;5
+			RET		A,01111101B	;6
+			RET		A,00000111B	;7
+			RET		A,01111111B	;8
+			RET		A,01100111B	;9
+NUMBER		ENDP
+
+;===================================
